@@ -1,0 +1,42 @@
+name: cassette
+description: >-
+  Offline LLM/MCP replay checks — run cassette's conformance verify or linter over
+  a committed corpus. No API key, no network.
+branding:
+  icon: check-circle
+  color: purple
+
+inputs:
+  command:
+    description: 'What to run: lint (file or corpus dir) | verify (a single file)'
+    required: false
+    default: lint
+  path:
+    description: 'Cassette file (verify) or file/corpus directory (lint)'
+    required: false
+    default: testdata/cassettes
+  version:
+    description: 'cassette version to install (a tag, or "latest")'
+    required: false
+    default: latest
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v5
+      with:
+        # Pinned to the project's Go version (matches ci.yml / Dockerfile / go.mod),
+        # not "stable", so the action builds on the same toolchain it is tested on.
+        go-version: '1.27'
+    - name: Install cassette
+      shell: bash
+      run: go install github.com/faisalkhan91/cassette/cmd/cassette@${{ inputs.version }}
+    - name: Run cassette ${{ inputs.command }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        case "${{ inputs.command }}" in
+          verify) cassette verify "${{ inputs.path }}" ;;
+          lint)   cassette lint   "${{ inputs.path }}" ;;
+          *) echo "cassette action: unknown command '${{ inputs.command }}' (want verify|lint)" >&2; exit 2 ;;
+        esac

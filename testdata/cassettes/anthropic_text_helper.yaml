@@ -1,0 +1,33 @@
+schema_version: 1
+interactions:
+  - kind: http
+    request:
+      method: POST
+      url: /v1/messages
+      headers:
+        Accept: [application/json]
+        Anthropic-Version: [2023-06-01]
+        Content-Type: [application/json]
+        User-Agent: [Anthropic/Go 1.26.0]
+        X-Api-Key: [REDACTED]
+        X-Stainless-Arch: [arm64]
+        X-Stainless-Lang: [go]
+        X-Stainless-Os: [MacOS]
+        X-Stainless-Package-Version: [1.26.0]
+        X-Stainless-Retry-Count: [0]
+        X-Stainless-Runtime: [go]
+        X-Stainless-Runtime-Version: [go1.24.5]
+      body: '{"max_tokens":1024,"messages":[{"content":[{"text":"Hi there","type":"text"}],"role":"user"}],"model":"claude-opus-4-6","stream":true}'
+      body_sha256: 1bccbda2655cf1837b2d001e5e2683b72278823b8461b28e58ef6ed743312b6c
+      match_key: |-
+        POST
+        /v1/messages
+        json:1bccbda2655cf1837b2d001e5e2683b72278823b8461b28e58ef6ed743312b6c
+    response:
+      status: 200
+      headers:
+        Cache-Control: [no-cache]
+        Content-Type: [text/event-stream]
+        Date: ['Thu, 18 Jun 2026 02:40:53 GMT']
+      streaming: true
+      body: "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_01TEXTLIVE0001\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-opus-4-6\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":12,\"output_tokens\":1}}}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\nevent: ping\ndata: {\"type\":\"ping\"}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\", world\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"! \U0001F30D\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":9}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"

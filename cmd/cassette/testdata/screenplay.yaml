@@ -1,0 +1,13 @@
+# A hand-authored two-turn conversation. `cassette author` compiles this into a
+# valid, replayable cassette with no API key and no network.
+provider: anthropic
+model: claude-opus-4-6
+turns:
+  - user: "What's the weather in Paris?"
+    tool_calls:
+      - name: get_weather
+        args: '{"city":"Paris"}'
+    finish: tool_use
+  - user: "Thanks — anything else I should know?"
+    text: "It's mild and clear in Paris today. Bring a light jacket for the evening."
+    finish: end_turn

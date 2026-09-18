@@ -1,0 +1,48 @@
+Wire fixtures — provenance & integrity
+======================================
+
+The *.sse files in ./wire are VERBATIM Server-Sent Event byte streams in the
+Anthropic Messages streaming format. They are the permanent, offline RECORD
+source for cassette's self-tests and the north-star demo: the in-process fake
+provider (internal/fakeprovider) replays these exact bytes over httptest so the
+real Anthropic SDK decoder consumes them just as it would a live stream.
+
+Provenance
+----------
+No live API key or network was used (none is available, by design). These
+streams were HAND-TRANSCRIBED from the documented Anthropic Messages streaming
+event sequence:
+
+  message_start
+  content_block_start
+  ( ping )
+  content_block_delta   (text_delta | input_json_delta)
+  content_block_stop
+  message_delta
+  message_stop
+
+and the documented mid-stream `error` event. Reference: Anthropic "Streaming
+Messages" documentation (event/data SSE framing, text_delta and
+input_json_delta deltas, ping keep-alives, and error events).
+
+The coffee_turn_NN.sse fixtures are the six turns of a REAL multi-tool agent
+conversation (five sequential tool_use calls — list_menu, get_price,
+check_inventory, caffeine_mg, brew_minutes — then a final recommendation),
+CAPTURED from a real provider streaming session (via a corporate LLM proxy) and
+committed verbatim after secret scrubbing. They contain real model output but no
+credentials.
+
+Why these are embedded (not under testdata/wire)
+------------------------------------------------
+Go's //go:embed cannot reach a sibling testdata/ directory, and the runnable
+demo binary (examples/) must read these fixtures offline regardless of working
+directory. Embedding them in this package makes them a single source of truth
+shared by the fake provider, the tests, and the demo. See DECISIONS.md.
+
+Integrity
+---------
+These files are intentionally NOT happy-path-only: they include ping/comment
+lines, a multibyte UTF-8 character (🌍 / é), fragmented tool-call arguments, and
+a mid-stream error. The fake provider additionally writes them with adversarial
+chunk boundaries (mid-event, multibyte-internal) to exercise the SDK scanner and
+the streaming capture tee. They contain no secrets.

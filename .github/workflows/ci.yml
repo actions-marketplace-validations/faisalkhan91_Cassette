@@ -1,0 +1,61 @@
+name: ci
+
+# The workflow calls scripts/ci.sh and NOTHING else. No secrets are configured,
+# proving the suite is green fully offline.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    # Run the offline gate on Linux and macOS (the two shipped runtime OSes); the
+    # Windows target is covered by the cross-build step inside scripts/ci.sh.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+          # Vendored deps make the build offline; no module download is needed.
+          cache: false
+      - name: Run the single offline gate
+        run: scripts/ci.sh
+
+  # govulncheck checks the (vendored) dependencies against the Go vulnerability
+  # database. It needs network for the DB, so it is a SEPARATE job from the offline
+  # gate above — never part of scripts/ci.sh.
+  vuln:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  # golangci-lint needs network to install, so it can't live in the offline gate.
+  # ADVISORY ONLY: continue-on-error means it surfaces findings on PRs but never
+  # blocks the build — the offline gate (gofmt + go vet) stays authoritative.
+  # Reads .golangci.yml (v2 schema). See DECISIONS.md "golangci-lint is advisory".
+  lint:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest

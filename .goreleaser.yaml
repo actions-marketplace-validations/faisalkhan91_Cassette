@@ -1,0 +1,104 @@
+# GoReleaser configuration for cassette.
+# Local dry run:  goreleaser release --snapshot --clean
+version: 2
+
+before:
+  hooks:
+    # Read-only sanity check. NOT `go mod tidy`: tidy can fetch and rewrite
+    # go.mod/go.sum at release time (network on), building from a go.sum the
+    # offline gate never validated. Tidiness is already enforced by scripts/ci.sh.
+    - go mod verify
+
+builds:
+  - id: cassette
+    main: ./cmd/cassette
+    binary: cassette
+    env:
+      - CGO_ENABLED=0
+      # Re-assert the offline/vendored invariant at release time (matches ci.sh).
+      - GOFLAGS=-mod=vendor
+      - GOPROXY=off
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }} -X main.commit={{ .Commit }} -X main.date={{ .CommitDate }}
+
+archives:
+  - id: cassette
+    formats: [tar.gz]
+    name_template: "cassette_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - CHANGELOG.md
+      - DECISIONS.md
+      - docs/*.md
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+brews:
+  - name: cassette
+    repository:
+      owner: faisalkhan91
+      name: homebrew-tap
+      # A PAT with contents:write on the tap repo — the default GITHUB_TOKEN is
+      # scoped to the source repo and cannot push to a separate tap.
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://github.com/faisalkhan91/cassette"
+    description: "Record/replay VCR for LLM (HTTP/SSE) and MCP tool calls"
+    license: "MIT"
+    install: |
+      bin.install "cassette"
+    test: |
+      system "#{bin}/cassette", "version"
+
+# Per-arch images + a combined manifest, so `docker pull` resolves the right arch
+# (Apple Silicon / Graviton get a native arm64 image instead of an emulated amd64).
+dockers:
+  - image_templates:
+      - "ghcr.io/faisalkhan91/cassette:{{ .Version }}-amd64"
+      - "ghcr.io/faisalkhan91/cassette:latest-amd64"
+    dockerfile: Dockerfile
+    use: buildx
+    goarch: amd64
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--build-arg=VERSION={{ .Version }}"
+      - "--build-arg=COMMIT={{ .Commit }}"
+      - "--build-arg=DATE={{ .CommitDate }}"
+  - image_templates:
+      - "ghcr.io/faisalkhan91/cassette:{{ .Version }}-arm64"
+      - "ghcr.io/faisalkhan91/cassette:latest-arm64"
+    dockerfile: Dockerfile
+    use: buildx
+    goarch: arm64
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--build-arg=VERSION={{ .Version }}"
+      - "--build-arg=COMMIT={{ .Commit }}"
+      - "--build-arg=DATE={{ .CommitDate }}"
+
+docker_manifests:
+  - name_template: "ghcr.io/faisalkhan91/cassette:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/faisalkhan91/cassette:{{ .Version }}-amd64"
+      - "ghcr.io/faisalkhan91/cassette:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/faisalkhan91/cassette:latest"
+    image_templates:
+      - "ghcr.io/faisalkhan91/cassette:latest-amd64"
+      - "ghcr.io/faisalkhan91/cassette:latest-arm64"
+
+release:
+  draft: false
+  prerelease: auto

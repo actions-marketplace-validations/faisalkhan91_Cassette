@@ -1,0 +1,22 @@
+# An authored MCP conformance corpus: a tiny calculator server exercised across
+# tools/list, a successful tools/call, and a tool-error. Compile with:
+#   cassette author cmd/cassette/testdata/mcp/calculator.screenplay.yaml -o calculator.yaml
+# then replay with `cassette mcp-serve calculator.yaml` (zero subprocess, zero net).
+turns:
+  - kind: mcp
+    method: tools/list
+    tool_calls:
+      - name: add
+        args: '{"type":"object","properties":{"a":{"type":"number"},"b":{"type":"number"}},"required":["a","b"]}'
+      - name: divide
+        args: '{"type":"object","properties":{"a":{"type":"number"},"b":{"type":"number"}},"required":["a","b"]}'
+  - kind: mcp
+    method: tools/call
+    tool: add
+    args: '{"a":2,"b":3}'
+    text: "5"
+  - kind: mcp
+    method: tools/call
+    tool: divide
+    args: '{"a":1,"b":0}'
+    tool_error: "division by zero"

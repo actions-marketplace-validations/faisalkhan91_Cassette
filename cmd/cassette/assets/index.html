@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cassette · transcript</title>
+<style>
+  :root {
+    --bg:#0d1117; --panel:#161b22; --line:#21262d; --fg:#e6edf3; --dim:#8b949e;
+    --accent:#58a6ff; --tool:#d2a8ff; --ok:#3fb950;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--fg);
+    font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  header.bar {
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    padding:12px 18px; border-bottom:1px solid var(--line);
+    background:var(--panel); position:sticky; top:0;
+  }
+  .brand { font-weight:700; color:var(--accent); }
+  .meta { color:var(--dim); }
+  .controls { margin-left:auto; display:flex; gap:8px; }
+  button {
+    background:#21262d; color:var(--fg); border:1px solid #30363d; border-radius:6px;
+    padding:6px 12px; font:inherit; cursor:pointer;
+  }
+  button:hover:not(:disabled) { border-color:var(--accent); }
+  button:disabled { opacity:.4; cursor:default; }
+  main#feed { max-width:900px; margin:0 auto; padding:18px; }
+  article.turn {
+    border:1px solid var(--line); border-radius:8px; background:var(--panel);
+    padding:12px 14px; margin:0 0 14px;
+  }
+  .role { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+  .badge {
+    font-size:11px; text-transform:uppercase; letter-spacing:.06em; font-weight:700;
+    padding:2px 8px; border-radius:999px; background:#1f6feb33; color:var(--accent);
+  }
+  .turn.k-mcp .badge { background:#3fb95033; color:var(--ok); }
+  .tag { color:var(--dim); font-size:12px; }
+  pre.text { margin:6px 0 0; white-space:pre-wrap; word-break:break-word; }
+  .caret::after { content:"▇"; color:var(--accent); animation:blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity:0; } }
+  .tools { margin-top:8px; display:flex; flex-direction:column; gap:6px; }
+  .chip {
+    border:1px solid #30363d; border-radius:6px; padding:5px 9px; background:#0d1117;
+    color:var(--tool); font-size:13px; overflow:auto;
+  }
+  .chip b { color:var(--fg); }
+  .chip code { color:var(--dim); }
+  .finish { margin-top:8px; color:var(--dim); font-size:12px; font-style:italic; }
+  footer.hint {
+    max-width:900px; margin:0 auto; padding:0 18px 30px; color:var(--dim); font-size:12px;
+    display:flex; gap:16px; flex-wrap:wrap;
+  }
+  footer code { color:var(--accent); }
+  .err { color:#f85149; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <span class="brand">cassette pack</span>
+  <span id="meta" class="meta">loading…</span>
+  <div class="controls" role="group" aria-label="Playback controls">
+    <button id="step" aria-keyshortcuts="Space ArrowRight" disabled>Step →</button>
+    <button id="play" disabled>Play</button>
+    <button id="reset" disabled>Reset</button>
+  </div>
+</header>
+
+<main id="feed" aria-live="polite" aria-busy="false"></main>
+
+<footer class="hint">
+  <span id="progress">0 / 0</span>
+  <span class="note">A real SDK can point its base URL at <code id="base"></code> for offline replay — no key, no network.</span>
+</footer>
+
+<script>
+"use strict";
+const S = { turns:[], cursor:-1, tick:null, words:[], wi:0, node:null, playTimer:null };
+const feed = document.getElementById("feed");
+const $ = id => document.getElementById(id);
+
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;   // textContent only — never innerHTML for recorded data
+  return n;
+}
+
+function renderTurn(t) {
+  const art = el("article", "turn k-" + (t.kind || "http"));
+  art.dataset.index = t.index;
+  const role = el("div", "role");
+  role.appendChild(el("span", "badge", t.role || t.kind || "turn"));
+  let tag = "";
+  if (t.kind === "mcp") tag = (t.method || "") + (t.tool ? " " + t.tool : "");
+  else if (t.method || t.url) tag = (t.method || "") + " " + (t.url || "") + (t.status ? " → " + t.status : "");
+  if (tag.trim()) role.appendChild(el("span", "tag", tag.trim()));
+  art.appendChild(role);
+  const body = el("div", "body");
+  const pre = el("pre", "text");
+  body.appendChild(pre);
+  const tools = el("div", "tools");
+  body.appendChild(tools);
+  art.appendChild(body);
+  if (t.finish_reason) {
+    const f = el("div", "finish", "finish: " + t.finish_reason);
+    art.appendChild(f);
+  }
+  return { art, pre, tools };
+}
+
+function renderTools(toolsEl, calls) {
+  (calls || []).forEach(c => {
+    const chip = el("span", "chip");
+    chip.appendChild(el("b", null, c.name || "tool"));
+    if (c.args) chip.appendChild(el("code", null, " " + c.args));
+    toolsEl.appendChild(chip);
+  });
+}
+
+function startStream(pre, text) {
+  S.words = text.split(/(\s+)/);
+  S.wi = 0; S.node = pre;
+  pre.classList.add("caret");
+  feed.setAttribute("aria-busy", "true");
+  S.tick = setInterval(frame, 26);
+}
+function frame() {
+  if (S.wi >= S.words.length) { finishStream(); return; }
+  S.node.textContent += S.words[S.wi++];
+}
+function finishStream() {
+  if (S.tick == null) return;
+  clearInterval(S.tick); S.tick = null;
+  if (S.node) { S.node.textContent = S.words.join(""); S.node.classList.remove("caret"); }
+  feed.setAttribute("aria-busy", "false");
+  S.node = null;
+  updateProgress();
+  syncButtons();
+}
+
+function step() {
+  if (S.tick != null) { finishStream(); return; }   // mid-stream: skip the animation
+  if (S.cursor + 1 >= S.turns.length) return;
+  S.cursor++;
+  const t = S.turns[S.cursor];
+  const { art, pre, tools } = renderTurn(t);
+  feed.appendChild(art);
+  renderTools(tools, t.tool_calls);
+  art.scrollIntoView({ behavior:"smooth", block:"end" });
+  if (t.text) startStream(pre, t.text);
+  else { updateProgress(); syncButtons(); }
+}
+
+function reset() {
+  if (S.tick != null) { clearInterval(S.tick); S.tick = null; }
+  stopPlay();
+  feed.innerHTML = "";          // static chrome only — safe
+  S.cursor = -1; S.node = null;
+  feed.setAttribute("aria-busy", "false");
+  updateProgress(); syncButtons();
+}
+
+function play() {
+  if (S.playTimer != null) { stopPlay(); return; }
+  $("play").textContent = "Pause";
+  S.playTimer = setInterval(() => {
+    if (S.tick == null && S.cursor + 1 >= S.turns.length) { stopPlay(); return; }
+    step();
+  }, 650);
+}
+function stopPlay() {
+  if (S.playTimer != null) { clearInterval(S.playTimer); S.playTimer = null; }
+  $("play").textContent = "Play";
+}
+
+function updateProgress() { $("progress").textContent = (S.cursor + 1) + " / " + S.turns.length; }
+function syncButtons() {
+  const done = S.cursor + 1 >= S.turns.length && S.tick == null;
+  $("step").disabled = done;
+}
+
+function wire() {
+  $("step").disabled = false; $("play").disabled = false; $("reset").disabled = false;
+  $("step").addEventListener("click", step);
+  $("play").addEventListener("click", play);
+  $("reset").addEventListener("click", reset);
+  document.addEventListener("keydown", e => {
+    if (e.key === " " || e.key === "ArrowRight") { e.preventDefault(); step(); }
+    else if (e.key === "r" || e.key === "R") { reset(); }
+  });
+}
+
+(function init() {
+  $("base").textContent = location.origin;
+  fetch("transcript.json", { cache:"no-store" })
+    .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(turns => {
+      S.turns = Array.isArray(turns) ? turns : [];
+      $("meta").textContent = S.turns.length + " turn" + (S.turns.length === 1 ? "" : "s");
+      updateProgress();
+      wire();
+    })
+    .catch(err => {
+      $("meta").innerHTML = "";
+      $("meta").appendChild(el("span", "err", "failed to load transcript: " + err.message));
+    });
+})();
+</script>
+</body>
+</html>

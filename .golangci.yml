@@ -1,0 +1,25 @@
+# golangci-lint configuration (v2 schema). scripts/ci.sh runs `golangci-lint run`
+# only when the binary is installed AND this file exists, so CI stays offline by
+# default and this is an opt-in local/contributor gate.
+version: "2"
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  disable:
+    # CLI code intentionally ignores fmt.Fprint* write errors to stdout/stderr;
+    # errcheck would flag every print. The meaningful error paths are checked.
+    - errcheck
+  enable:
+    - misspell
+    - unconvert
+    - bodyclose
+  exclusions:
+    generated: lax
+    rules:
+      # Vendored third-party code is not ours to lint.
+      - path: vendor/
+        linters: [misspell, unconvert, bodyclose, staticcheck, govet, ineffassign, unused]
+
+formatters:
+  enable:
+    - gofmt

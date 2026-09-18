@@ -1,0 +1,16 @@
+# Build artifacts
+/tmp/
+*.out
+cover.out
+coverage.html
+/dist/
+/cassette
+/mcpfixture
+
+# Editor noise
+.DS_Store
+*.swp
+/session-demo
+
+# Real-CLI captures (corporate-internal; see docs/recipes/realworld.md)
+testdata/realworld/

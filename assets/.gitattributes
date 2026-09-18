@@ -1,0 +1,3 @@
+# Demo GIFs / screenshots are generated binaries — never diff or normalize them.
+*.gif binary
+*.png binary
