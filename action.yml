@@ -1,4 +1,4 @@
-name: Cassette
+name: Cassette - AI Recorder
 description: >-
   Offline LLM/MCP replay checks — run cassette's conformance verify or linter over
   a committed corpus. No API key, no network.
